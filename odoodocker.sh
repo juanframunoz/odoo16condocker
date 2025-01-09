@@ -1,13 +1,39 @@
 #!/usr/bin/env bash
 #
-# Script para instalar Docker, Docker Compose y desplegar Odoo con Traefik (Let's Encrypt).
+# Script para:
+#   1. Instalar Docker y Docker Compose (Ubuntu/Debian).
+#   2. Configurar la localización en español (es_ES.UTF-8).
+#   3. Desplegar Odoo en Docker con Traefik y Let's Encrypt (HTTPS).
 #
 # Uso:
 #   chmod +x instalar_odoo_con_letsencrypt.sh
 #   ./instalar_odoo_con_letsencrypt.sh
 #
-# Probado en Ubuntu/Debian. Para otras distribuciones, ajusta los comandos de instalación.
-#
+
+# ---------------------------------------------------------------------------
+# 0. Configurar localización a español (es_ES.UTF-8)
+# ---------------------------------------------------------------------------
+echo "===================================================="
+echo " [0/5] Configurando localización en español (es_ES) "
+echo "===================================================="
+
+# Instalar paquetes de localización
+sudo apt-get update -y
+sudo apt-get install locales -y
+
+# Generar localización española
+sudo locale-gen es_ES.UTF-8
+
+# Actualizar las variables de entorno
+sudo update-locale LANG=es_ES.UTF-8 LC_ALL=es_ES.UTF-8
+
+# Exportar las variables para la sesión actual
+export LANG=es_ES.UTF-8
+export LANGUAGE=es_ES:en
+export LC_ALL=es_ES.UTF-8
+
+echo "Localización configurada: es_ES.UTF-8"
+echo ""
 
 # ---------------------------------------------------------------------------
 # 1. Instalar Docker (Ubuntu/Debian)
@@ -16,21 +42,20 @@ echo "===================================================="
 echo "  [1/5] Instalando Docker en el sistema...          "
 echo "===================================================="
 
-# Actualizar repositorios
-sudo apt-get update -y
+# Eliminar versiones previas de Docker (si existieran)
+sudo apt-get remove docker docker-engine docker.io containerd runc -y
 
 # Instalar paquetes necesarios
+sudo apt-get update -y
 sudo apt-get install \
     ca-certificates \
     curl \
     gnupg \
     lsb-release -y
 
-# Eliminar versiones previas de Docker (si existieran)
-sudo apt-get remove docker docker-engine docker.io containerd runc -y
-
 # Agregar la llave GPG oficial de Docker
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor \
+  -o /usr/share/keyrings/docker-archive-keyring.gpg
 
 # Agregar el repositorio estable de Docker
 echo \
@@ -47,33 +72,36 @@ sudo systemctl enable docker
 sudo systemctl start docker
 
 echo "Docker instalado correctamente."
+echo ""
 
 # ---------------------------------------------------------------------------
 # 2. Instalar Docker Compose (última versión estable)
 # ---------------------------------------------------------------------------
-echo ""
 echo "===================================================="
 echo "  [2/5] Instalando Docker Compose...                "
 echo "===================================================="
 
-# Descarga la versión estable (ajusta la versión si lo deseas)
-DOCKER_COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep tag_name | cut -d '"' -f 4)
+# Obtener la última versión de Docker Compose desde GitHub
+DOCKER_COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest \
+  | grep tag_name | cut -d '"' -f 4)
 
-sudo curl -L "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" \
+# Descargar la versión específica para la arquitectura del sistema
+sudo curl -L \
+  "https://github.com/docker/compose/releases/download/${DOCKER_COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" \
   -o /usr/local/bin/docker-compose
 
 # Dar permisos de ejecución
 sudo chmod +x /usr/local/bin/docker-compose
 
 # Crear enlace simbólico (opcional, por compatibilidad)
-sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose || true
+sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose 2>/dev/null || true
 
 echo "Docker Compose instalado correctamente (versión: ${DOCKER_COMPOSE_VERSION})."
+echo ""
 
 # ---------------------------------------------------------------------------
 # 3. Solicitar dominio y correo para Let's Encrypt
 # ---------------------------------------------------------------------------
-echo ""
 echo "===================================================="
 echo "  [3/5] Configuración inicial: dominio y correo     "
 echo "===================================================="
@@ -108,9 +136,9 @@ services:
     command:
       - "--api.dashboard=true"                   # Habilita el dashboard de Traefik (opcional)
       - "--api.insecure=true"                    # Permite acceder al dashboard sin HTTPS (solo en entorno seguro)
-      - "--entrypoints.web.address=:80"          # Entrada para HTTP (necesaria para el desafío ACME)
-      - "--entrypoints.websecure.address=:443"   # Entrada para HTTPS
-      - "--providers.docker=true"                # Habilita la detección de contenedores Docker
+      - "--entrypoints.web.address=:80"          # Entrada HTTP (necesaria para el desafío ACME)
+      - "--entrypoints.websecure.address=:443"   # Entrada HTTPS
+      - "--providers.docker=true"                # Detección de contenedores Docker
       - "--providers.docker.exposedbydefault=false"
       - "--certificatesresolvers.myresolver.acme.email=${EMAIL}"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
@@ -148,6 +176,10 @@ services:
       - HOST=db
       - USER=odoo
       - PASSWORD=odoo
+      # Ajustamos variables de entorno para localización en español dentro del contenedor
+      - LANG=es_ES.UTF-8
+      - LANGUAGE=es_ES:en
+      - LC_ALL=es_ES.UTF-8
     networks:
       - odoo_net
       - web
@@ -181,11 +213,11 @@ networks:
 EOF
 
 echo "Archivo docker-compose.yml creado."
+echo ""
 
 # ---------------------------------------------------------------------------
 # 5. Levantar los contenedores
 # ---------------------------------------------------------------------------
-echo ""
 echo "===================================================="
 echo "  [5/5] Iniciando contenedores con Docker Compose... "
 echo "===================================================="
@@ -194,14 +226,19 @@ docker-compose up -d
 echo ""
 echo "========================================================="
 echo "        Odoo + PostgreSQL + Traefik (Let's Encrypt)      "
+echo "          con localización española (es_ES.UTF-8)        "
 echo "========================================================="
 echo " Se han instalado Docker y Docker Compose correctamente."
-echo " Se han levantado los contenedores en segundo plano.   "
+echo " Se ha configurado el sistema en español (es_ES.UTF-8). "
+echo " Se han levantado los contenedores en segundo plano.    "
 echo "                                                       "
 echo "  - Dominio: $DOMAIN                                   "
-echo "  - Dashboard Traefik: http://$DOMAIN:8080 (si abres el puerto y ajustas config) "
 echo "                                                       "
 echo " Inicialmente Odoo estará en http://$DOMAIN            "
 echo " En unos minutos, se generará y activará el certificado"
 echo " SSL, y podrás acceder vía https://$DOMAIN             "
+echo "                                                       "
+echo "---------------------------------------------------------"
+echo " Para mayor seguridad, deshabilita '--api.insecure=true'"
+echo " en la configuración de Traefik y protege su dashboard. "
 echo "========================================================="
